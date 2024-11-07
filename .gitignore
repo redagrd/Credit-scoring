@@ -1,0 +1,19 @@
+# Environnement virtuel
+venv/
+venv
+__pycache__/
+.DS_Store
+*.pyc
+
+# Configurations spécifiques
+*.env
+.vscode/
+application_test.csv
+application_train.csv
+final_processed_data_with_ids.csv
+final_processed_data.csv
+# Ignorer le dossier mlflow
+mlruns/
+mlartifacts/
+# Ignorer tous les fichiers CSV
+*.csv
