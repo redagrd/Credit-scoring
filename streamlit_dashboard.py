@@ -3,123 +3,125 @@
 import streamlit as st
 import requests
 import pandas as pd
-from evidently.report import Report
-from evidently.metric_preset import DataDriftPreset
-import os
 
 # Titre du dashboard
-st.title("Dashboard de Scoring de Crédit avec Suivi du Data Drift")
+st.title("Dashboard de Scoring de Crédit")
 
 # URL de l'API pour les prédictions
-api_url = "http://127.0.0.1:8000/predict"
+api_url = "https://creditrg-37c727617d30.herokuapp.com/predict"
 
-# Demander l'identifiant client pour les prédictions
+# Section pour les prédictions
 st.subheader("Prédiction de Crédit")
-client_id = st.text_input("Entrez l'identifiant du client", value="100016")
+
+# Demander l'identifiant client
+client_id = st.text_input("Entrez l'identifiant du client :", value="100007")
 
 # Bouton pour obtenir le score
 if st.button("Obtenir le score de crédit"):
     if client_id:
         try:
-            # Appel de l'API pour prédire
+            # Appel de l'API pour obtenir la prédiction
             response = requests.post(api_url, json={"client_id": int(client_id)})
 
             # Vérifier la réponse de l'API
             if response.status_code == 200:
                 result = response.json()
                 prediction = result["prediction"]
-                
-                # Afficher le résultat
+                score = result.get("score", "N/A")  # Si disponible, récupérer le score
+
+                # Afficher le résultat avec plus de détails
                 if prediction == 1:
                     st.success(f"Le client {client_id} est éligible pour un crédit.")
+                    if score != "N/A":
+                        st.info(f"Score du client : {score:.2f} (plus le score est élevé, plus le client est fiable)")
                 else:
                     st.error(f"Le client {client_id} n'est pas éligible pour un crédit.")
+                    if score != "N/A":
+                        st.info(f"Score du client : {score:.2f} (plus le score est bas, plus le client est risqué)")
             else:
-                st.error(f"Erreur: {response.json()['detail']}")
+                st.error(f"Erreur : {response.json()['detail']}")
 
         except Exception as e:
             st.error(f"Erreur lors de l'appel de l'API : {e}")
     else:
         st.warning("Veuillez entrer un identifiant client valide.")
 
-# Section pour le suivi du Data Drift
-st.subheader("Suivi du Data Drift")
+# Section pour afficher les informations générales
+st.subheader("Informations supplémentaires")
 
-# Fichiers de données
-reference_data_path = "application_train.csv"  # Jeu de données de référence
-new_data_path = "application_test.csv"  # Nouvelles données (simulées)
+st.write(
+    """
+    Ce dashboard permet de :
+    - **Évaluer l'éligibilité d'un client** à un crédit en fonction de ses caractéristiques.
+    - **Obtenir un score détaillé**, représentant la probabilité de remboursement du crédit.
+    
+    ### Méthodologie
+    - Le modèle utilisé est un `LightGBM Classifier`.
+    - Les prédictions sont effectuées à l'aide d'une API hébergée sur Heroku.
+    - Le score affiché est la probabilité prédite pour la classe positive (client éligible).
+    """
+)
 
-# Vérifier que les fichiers de données existent
-if os.path.exists(reference_data_path) and os.path.exists(new_data_path):
-    # Bouton pour générer et afficher le rapport de data drift
-    if st.button("Afficher le rapport de Data Drift"):
-        try:
-            # Charger les données en ignorant les lignes problématiques
-            reference_data = pd.read_csv(reference_data_path, encoding="utf-8", on_bad_lines="skip")
-            new_data = pd.read_csv(new_data_path, encoding="utf-8", on_bad_lines="skip")
+st.write("### Exemple d'ID Client")
+st.write(
+    """
+    Voici des exemples d'IDs clients que vous pouvez utiliser pour tester le système :
+    - **100007** : Client éligible
+    - **100006** : Client non éligible
+    """
+)
 
-            # Spécifier les principales features à surveiller
-            main_features = ['AMT_GOODS_PRICE', 'EXT_SOURCE_3', 'EXT_SOURCE_1', 'EXT_SOURCE_2', 'DAYS_BIRTH'] 
+# Section pour uploader un fichier CSV
+st.subheader("Tester plusieurs clients à la fois")
 
-            # Créer le dashboard de data drift avec DataDriftPreset
-            data_drift_report = Report(metrics=[DataDriftPreset()])
-            data_drift_report.run(reference_data=reference_data[main_features], current_data=new_data[main_features])
+uploaded_file = st.file_uploader("Chargez un fichier CSV avec des identifiants clients", type=["csv"])
 
-            # Sauvegarder le rapport dans un fichier HTML temporaire
-            data_drift_report.save_html("data_drift_report.html")
+if uploaded_file is not None:
+    try:
+        # Lire le fichier CSV
+        client_data = pd.read_csv(uploaded_file)
 
-            # Streamlit pour afficher le rapport
-            st.title("Dashboard de Scoring de Crédit avec Suivi du Data Drift")
+        # Vérifier si la colonne client_id est présente
+        if "client_id" in client_data.columns:
+            # Créer une liste des IDs à tester
+            ids = client_data["client_id"].tolist()
 
-            # Afficher le rapport dans Streamlit
-            with open("data_drift_report.html", "r") as f:
-                html_content = f.read()
-                st.components.v1.html(html_content, height=1000, scrolling=True)
+            # Envoyer les requêtes pour chaque ID
+            results = []
+            for client_id in ids:
+                response = requests.post(api_url, json={"client_id": int(client_id)})
+                if response.status_code == 200:
+                    result = response.json()
+                    results.append(
+                        {
+                            "client_id": client_id,
+                            "prediction": result["prediction"],
+                            "score": result.get("score", "N/A"),
+                        }
+                    )
+                else:
+                    results.append(
+                        {
+                            "client_id": client_id,
+                            "prediction": "Erreur",
+                            "score": "N/A",
+                        }
+                    )
 
-        except Exception as e:
-            st.error(f"Erreur lors de la génération du rapport de Data Drift : {e}")
-else:
-    st.warning("Les fichiers de données de référence ou de nouvelles données sont introuvables.")
+            # Afficher les résultats sous forme de tableau
+            results_df = pd.DataFrame(results)
+            st.write("### Résultats des prédictions")
+            st.dataframe(results_df)
 
+            # Télécharger les résultats au format CSV
+            st.download_button(
+                label="Télécharger les résultats",
+                data=results_df.to_csv(index=False),
+                file_name="predictions.csv",
+                mime="text/csv",
+            )
+        else:
+            st.error("Le fichier CSV doit contenir une colonne nommée 'client_id'.")
 
-
-
-
-# # streamlit_dashboard.py
-
-# import streamlit as st
-# import requests
-
-# # Titre du dashboard
-# st.title("Dashboard de Scoring de Crédit")
-
-# # Demande d'un identifiant client
-# client_id = st.text_input("Entrez l'identifiant du client", value="100016")
-
-# # API URL - Remplacer par l'URL de l'API si elle est déployée sur un serveur distant
-# api_url = "http://127.0.0.1:8000/predict"
-
-# # Bouton pour obtenir le score
-# if st.button("Obtenir le score de crédit"):
-#     if client_id:
-#         try:
-#             # Appel de l'API
-#             response = requests.post(api_url, json={"client_id": int(client_id)})
-
-#             # Vérifier la réponse de l'API
-#             if response.status_code == 200:
-#                 result = response.json()
-#                 prediction = result["prediction"]
-                
-#                 # Afficher le résultat
-#                 if prediction == 1:
-#                     st.success(f"Le client {client_id} est éligible pour un crédit.")
-#                 else:
-#                     st.error(f"Le client {client_id} n'est pas éligible pour un crédit.")
-#             else:
-#                 st.error(f"Erreur: {response.json()['detail']}")
-
-#         except Exception as e:
-#             st.error(f"Erreur lors de l'appel de l'API : {e}")
-#     else:
-#         st.warning("Veuillez entrer un identifiant client valide.")
+    except Exception as e:
+        st.error(f"Erreur lors de la lecture du fichier : {e}")
