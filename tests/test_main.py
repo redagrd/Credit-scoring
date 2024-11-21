@@ -15,7 +15,7 @@ def test_predict_valid_client():
 
 def test_predict_nonexistent_client():
     """Tester l'API avec un client non-existant pour vérifier la gestion des erreurs."""
-    response = requests.post(f"{API_URL}/predict", json={"client_id": 999999})
+    response = requests.post(f"{API_URL}/predict", json={"client_id": 100000000})
     
     # Vérifiez si le statut est 404 ou 500
     assert response.status_code in [404, 500]
