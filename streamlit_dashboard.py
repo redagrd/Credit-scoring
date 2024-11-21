@@ -3,6 +3,7 @@
 import streamlit as st
 import requests
 import pandas as pd
+import plotly.graph_objects as go
 
 # Titre du dashboard
 st.title("Dashboard de Scoring de Crédit")
@@ -38,6 +39,27 @@ if st.button("Obtenir le score de crédit"):
                     st.error(f"Le client {client_id} n'est pas éligible pour un crédit.")
                     if score != "N/A":
                         st.info(f"Score du client : {score:.2f} (plus le score est bas, plus le client est risqué)")
+            # Ajouter une jauge pour visualiser le score
+                fig = go.Figure(go.Indicator(
+                    mode="gauge+number",
+                    value=score * 100,  # Convertir le score en pourcentage
+                    title={'text': "Score de Crédit (%)"},
+                    gauge={
+                        'axis': {'range': [0, 100]},
+                        'steps': [
+                            {'range': [0, 40], 'color': "red"},
+                            {'range': [40, 70], 'color': "yellow"},
+                            {'range': [70, 100], 'color': "green"}
+                        ],
+                        'threshold': {
+                            'line': {'color': "black", 'width': 4},
+                            'thickness': 0.75,
+                            'value': score * 100
+                        }
+                    }
+                ))
+
+                st.plotly_chart(fig)
             else:
                 st.error(f"Erreur : {response.json()['detail']}")
 
